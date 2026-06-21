@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SIGNAL// · Chat & AV</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a; --surface:#141414; --surface2:#1e1e1e;
+  --border:#252525; --border2:#333; --accent:#00e5a0;
+  --accent-dim:#005f43; --accent-glow:rgba(0,229,160,0.15);
+  --text:#efefef; --muted:#555; --muted2:#888;
+  --danger:#ff4d4d; --warn:#f59e0b;
+  --me-bg:#00e5a0; --me-text:#001a0d; --them-bg:#1e1e1e;
+}
+
+body{
+  background:var(--bg); font-family:'IBM Plex Sans',sans-serif;
+  color:var(--text); min-height:100vh;
+  display:flex; align-items:center; justify-content:center;
+}
+
+#shell{
+  width:100%; max-width:520px; height:100vh; max-height:760px;
+  display:flex; flex-direction:column; background:var(--surface);
+  border:1px solid var(--border); position:relative; overflow:hidden;
+}
+
+/* ── JOIN SCREEN ── */
+#join-screen{
+  position:absolute;inset:0; background:var(--surface); z-index:30;
+  display:flex;flex-direction:column; align-items:center;justify-content:center;
+  padding:40px 36px;gap:0;
+}
+.logo{
+  font-family:'IBM Plex Mono',monospace; font-size:32px;font-weight:600;
+  color:var(--accent); letter-spacing:-1.5px; margin-bottom:4px;
+}
+.logo span{color:var(--muted2);font-weight:400}
+.sub{font-size:12px;color:var(--muted2);margin-bottom:30px;text-align:center;line-height:1.7;letter-spacing:.3px}
+.field{width:100%;margin-bottom:14px}
+.field label{
+  display:block; font-family:'IBM Plex Mono',monospace;
+  font-size:10px;color:var(--muted2); letter-spacing:1.5px;text-transform:uppercase; margin-bottom:7px;
+}
+.field input{
+  width:100%;padding:12px 14px; background:#0f0f0f; border:1px solid var(--border2);
+  color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:14px;outline:none;
+}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.btn-primary{
+  width:100%;padding:13px; background:var(--accent);color:var(--me-text);
+  font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;
+  border:none;cursor:pointer;letter-spacing:.5px; margin-bottom:12px;
+}
+.btn-outline{
+  width:100%;padding:13px; background:transparent;color:var(--accent);
+  font-family:'IBM Plex Mono',monospace;font-size:14px;
+  border:1px solid var(--accent-dim);cursor:pointer; margin-bottom:12px;
+}
+.btn-public{
+  width:100%;padding:13px; background:#1e3a8a;color:#93c5fd;
+  font-family:'IBM Plex Mono',monospace;font-size:14px; border:none;cursor:pointer;
+}
+.or-sep{
+  display:flex;align-items:center;gap:12px; width:100%;color:var(--muted);font-size:12px;margin:6px 0 14px;
+}
+.or-sep::before,.or-sep::after{content:'';flex:1;height:1px;background:var(--border2)}
+
+/* ── TOP BAR ── */
+#topbar{
+  display:flex;align-items:center;gap:10px; padding:11px 16px;
+  border-bottom:1px solid var(--border); background:#0f0f0f;flex-shrink:0;
+}
+#status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .4s}
+#status-dot.waiting{background:var(--warn);animation:pulse 1.1s infinite}
+#status-dot.connected{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+#status-text{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#room-pill{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
+  color:var(--accent);background:var(--accent-dim); padding:3px 10px;cursor:pointer;
+}
+
+/* ── MEDIA OVERLAY ── */
+#call-overlay{
+  display:none; position:absolute;inset:0; background:rgba(10,10,10,.96);
+  z-index:20; flex-direction:column;align-items:center;justify-content:center;gap:20px;
+}
+#call-overlay.show{display:flex}
+
+#video-container{
+  display:none; position:absolute; inset:0; z-index:-1; background:#000;
+}
+#video-container.show{display:block}
+#remote-video{width:100%;height:100%;object-fit:cover;}
+#local-video{
+  position:absolute;top:20px;right:20px; width:110px;height:160px;
+  object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,0.15);
+  background:#111; box-shadow: 0 8px 24px rgba(0,0,0,0.6); z-index:25; transition: opacity 0.3s;
+}
+#local-video.cam-off { opacity: 0; }
+
+#call-avatar{
+  width:80px;height:80px;border-radius:50%; background:var(--accent-dim);border:2px solid var(--accent);
+  display:flex;align-items:center;justify-content:center; font-family:'IBM Plex Mono',monospace;font-size:28px;color:var(--accent);
+}
+#call-peer-name{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--text); text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 10;}
+#call-state-label{font-size:13px;color:var(--muted2);font-family:'IBM Plex Mono',monospace; z-index: 10;}
+#call-timer{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;color:var(--accent);display:none; text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 10;}
+
+/* Call Controls Dock */
+.call-btn-row{display:flex;gap:16px;margin-top:10px; z-index:30; transition: all 0.3s;}
+#call-overlay.video-active .call-btn-row {
+  position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+  background: rgba(15, 15, 15, 0.75); padding: 12px 24px; border-radius: 40px;
+  backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1);
+  margin-top: 0; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.call-btn{
+  width:54px;height:54px;border-radius:50%;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center; font-size: 20px;
+  transition: transform 0.2s, background 0.3s;
+}
+.call-btn:active{ transform: scale(0.9); }
+#btn-accept{background:#22c55e; color:#fff;} 
+#btn-hangup{background:var(--danger); color:#fff;}
+.ctrl-btn { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.05); }
+.ctrl-btn:hover { background: rgba(255,255,255,0.25); }
+.ctrl-btn.muted { background: rgba(245, 158, 11, 0.2); border-color: var(--warn); color: var(--warn); }
+
+/* ── MESSAGES ── */
+#msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.msg{display:flex;flex-direction:column;max-width:80%}
+.msg.me{align-self:flex-end;align-items:flex-end}
+.msg.them{align-self:flex-start;align-items:flex-start}
+.msg.sys{align-self:center;max-width:100%}
+.msg.call-log{align-self:center;max-width:100%}
+.bubble{padding:9px 13px;font-size:14px;line-height:1.55;word-break:break-word}
+.me .bubble{background:var(--me-bg);color:var(--me-text);font-weight:500; border-radius:8px 8px 0 8px;}
+.them .bubble{background:var(--them-bg);border:1px solid var(--border2); border-radius:8px 8px 8px 0;}
+.sys .bubble{background:transparent;color:var(--muted);font-size:11px;font-family:'IBM Plex Mono',monospace;padding:2px 0;}
+.call-log .bubble{background:var(--surface2);color:var(--muted2);font-size:12px;font-family:'IBM Plex Mono',monospace;border:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.meta{font-size:11px;color:var(--muted);margin-top:4px;font-family:'IBM Plex Mono',monospace}
+
+/* ── BOTTOM BAR ── */
+#bottom-bar{display:flex;align-items:center;border-top:1px solid var(--border);background:#0f0f0f;}
+.media-btn{
+  width:44px;height:52px;background:transparent;border:none;color:var(--muted2);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border);
+}
+.media-btn:hover:not(:disabled){color:var(--accent)}
+.media-btn:disabled{opacity:.3}
+#msg-input{flex:1;padding:14px;background:transparent;border:none;color:var(--text);font-family:'IBM Plex Sans';font-size:14px;outline:none;}
+#send-btn{width:52px;height:52px;background:var(--accent);color:var(--me-text);border:none;cursor:pointer;}
+
+/* ── NOTIF BADGE ── */
+#call-notif{
+  display:none; position:absolute;top:0;left:0;right:0; background:#1a1a2e;border-bottom:1px solid #60a5fa;
+  padding:10px 16px;z-index:40; align-items:center;gap:12px; font-family:'IBM Plex Mono',monospace;font-size:13px;
+}
+#call-notif.show{display:flex}
+#call-notif-text{flex:1;color:#93c5fd}
+.notif-btn{padding:7px 14px;border:none;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:12px;border-radius:4px}
+#notif-accept{background:#22c55e;color:#fff} #notif-decline{background:var(--danger);color:#fff;}
+</style>
+</head>
+<body>
+<div id="shell">
+  <div id="join-screen">
+    <div class="logo">SIGNAL<span>//</span></div>
+    <div class="sub">Encrypted P2P · Text, Voice & Video</div>
+    <div class="field">
+      <label>Your Handle</label>
+      <input id="name-inp" placeholder="e.g. alice" maxlength="24" autocomplete="off"/>
+    </div>
+    
+    <button class="btn-public" id="public-btn">[ JOIN PUBLIC LOUNGE ]</button>
+    <div class="or-sep">or use private code</div>
+    
+    <div class="field">
+      <label>Private Room Code</label>
+      <input id="room-inp" placeholder="e.g. JADE-77" style="text-transform:uppercase" maxlength="12" autocomplete="off"/>
+    </div>
+    <button class="btn-primary" id="create-btn">[ CREATE PRIVATE ]</button>
+    <button class="btn-outline" id="join-btn">[ JOIN PRIVATE ]</button>
+  </div>
+
+  <div id="call-notif">
+    <span id="call-notif-icon">📞</span>
+    <span id="call-notif-text">Incoming call…</span>
+    <button class="notif-btn" id="notif-accept">Accept</button>
+    <button class="notif-btn" id="notif-decline">Decline</button>
+  </div>
+
+  <div id="topbar">
+    <div id="status-dot" class="waiting"></div>
+    <span id="status-text">waiting for peer…</span>
+    <span id="room-pill"></span>
+  </div>
+
+  <div id="call-overlay">
+    <div id="video-container">
+      <video id="remote-video" autoplay playsinline></video>
+      <video id="local-video" autoplay muted playsinline></video>
+    </div>
+    <div id="call-avatar"><span>?</span></div>
+    <div id="call-peer-name">—</div>
+    <div id="call-state-label">calling…</div>
+    <div id="call-timer">00:00</div>
+    <div class="call-btn-row" id="call-btn-row"></div>
+  </div>
+
+  <div id="msgs"></div>
+
+  <div id="bottom-bar">
+    <button class="media-btn" id="voice-btn" disabled title="Start voice call">📞</button>
+    <button class="media-btn" id="video-btn" disabled title="Start video call">📹</button>
+    <input id="msg-input" placeholder="type a message…" disabled autocomplete="off"/>
+    <button id="send-btn" disabled>➔</button>
+  </div>
+  <audio id="remote-audio" autoplay playsinline style="display:none;"></audio>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pubnub@7.4.3/dist/web/pubnub.min.js"></script>
+<script>
+'use strict';
+const PUB_KEY = 'demo'; const SUB_KEY = 'demo';
+const ICE_SERVERS = [ {urls:'stun:stun.l.google.com:19302'} ];
+const WORDS1=['JADE','IRON','PINE','NOVA','FLUX','VOLT'];
+const WORDS2=['11','22','33','44','55','66'];
+
+let pn, myName='', roomId='', myId='';
+let peers = {};
+let pc = null;
+let localStream = null;
+let callState = 'idle'; // idle, outgoing, incoming, active
+let callPeerId = null;
+let isVideoCall = false;
+let isMicMuted = false, isCamMuted = false;
+let callTimerInterval, callSeconds=0;
+let pendingOffer = null, pendingVideoReq = false, iceBuffer = [], makingOffer=false;
+
+function uid(){ return Math.random().toString(36).slice(2,9) }
+function randRoom(){ return WORDS1[Math.floor(Math.random()*WORDS1.length)]+'-'+WORDS2[Math.floor(Math.random()*WORDS2.length)] }
+function tsNow(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) }
+function fmtTime(s){ return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0') }
+
+function addMsg(text, who, name, time){
+  const wrap = document.createElement('div'); wrap.className = 'msg '+who;
+  const bub = document.createElement('div'); bub.className = 'bubble'; bub.innerHTML = text;
+  wrap.appendChild(bub);
+  if(who==='me'||who==='them'){
+    const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = (who==='me'?myName:name)+' · '+(time||tsNow());
+    wrap.appendChild(meta);
+  }
+  document.getElementById('msgs').appendChild(wrap);
+  document.getElementById('msgs').scrollTop = 999999;
+}
+function sysMsg(t){ addMsg(t,'sys','','') }
+function addCallLog(icon, text){ addMsg(`<span>${icon}</span> ${text}`, 'call-log') }
+
+function updateCallUI(state){
+  const ov = document.getElementById('call-overlay');
+  const av = document.getElementById('call-avatar');
+  const lbl = document.getElementById('call-state-label');
+  const row = document.getElementById('call-btn-row');
+  const peerName = peers[callPeerId] ? peers[callPeerId].name : 'Peer';
+  
+  document.getElementById('call-peer-name').textContent = peerName;
+  document.getElementById('call-timer').style.display = state==='active' ? 'block' : 'none';
+  
+  if(isVideoCall && state==='active'){
+    document.getElementById('video-container').classList.add('show');
+    ov.classList.add('video-active');
+    av.style.display = 'none';
+  } else {
+    document.getElementById('video-container').classList.remove('show');
+    ov.classList.remove('video-active');
+    av.style.display = 'flex';
+  }
+
+  if(state==='outgoing'){
+    lbl.textContent='calling…';
+    row.innerHTML=`<button class="call-btn" id="btn-hangup" onclick="hangup()" title="Cancel Call">🛑</button>`;
+  } else if(state==='active'){
+    lbl.textContent='';
+    let btns = `<button class="call-btn ctrl-btn ${isMicMuted?'muted':''}" id="btn-mute-mic" onclick="toggleMic()" title="Mute/Unmute Mic">${isMicMuted?'🔇':'🎙️'}</button>`;
+    
+    if(isVideoCall) {
+      btns += `
+        <button class="call-btn ctrl-btn ${isCamMuted?'muted':''}" id="btn-mute-cam" onclick="toggleCam()" title="Turn Camera On/Off">${isCamMuted?'🚫':'📷'}</button>
+        <button class="call-btn ctrl-btn" onclick="toggleFullscreen()" title="Fullscreen">⛶</button>
+      `;
+    }
+    btns += `<button class="call-btn" id="btn-hangup" onclick="hangup()" title="End Call">🛑</button>`;
+    row.innerHTML = btns;
+  }
+  ov.classList.add('show');
+}
+
+function hideCallUI(){
+  document.getElementById('call-overlay').classList.remove('show', 'video-active');
+  document.getElementById('video-container').classList.remove('show');
+  document.getElementById('call-notif').classList.remove('show');
+}
+
+/* Toggles */
+function toggleMic(){
+  if(!localStream) return;
+  const track = localStream.getAudioTracks()[0];
+  if(track){
+    isMicMuted = !isMicMuted;
+    track.enabled = !isMicMuted;
+    const btn = document.getElementById('btn-mute-mic');
+    btn.classList.toggle('muted', isMicMuted);
+    btn.textContent = isMicMuted ? '🔇' : '🎙️';
+  }
+}
+
+function toggleCam(){
+  if(!localStream) return;
+  const track = localStream.getVideoTracks()[0];
+  if(track){
+    isCamMuted = !isCamMuted;
+    track.enabled = !isCamMuted;
+    const btn = document.getElementById('btn-mute-cam');
+    btn.classList.toggle('muted', isCamMuted);
+    btn.textContent = isCamMuted ? '🚫' : '📷';
+    document.getElementById('local-video').classList.toggle('cam-off', isCamMuted);
+  }
+}
+
+function toggleFullscreen() {
+  const elem = document.getElementById('shell');
+  if (!document.fullscreenElement) {
+    elem.requestFullscreen().catch(err => console.log(err));
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+async function getMedia(video){
+  if(localStream) return localStream;
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({audio:true, video:video});
+    if(video) document.getElementById('local-video').srcObject = localStream;
+    return localStream;
+  } catch(e) {
+    console.error("Media error:", e);
+    sysMsg("Media permission denied or unavailable. Ensure you are using HTTPS.");
+    throw e;
+  }
+}
+
+function stopMedia(){
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+  document.getElementById('local-video').srcObject = null;
+  document.getElementById('remote-video').srcObject = null;
+  document.getElementById('local-video').classList.remove('cam-off');
+}
+
+function createPC(){
+  if(pc) pc.close();
+  pc = new RTCPeerConnection({iceServers:ICE_SERVERS});
+  pc.onicecandidate = e => {
+    if(e.candidate && callPeerId) publish({type:'ice', candidate:e.candidate.toJSON(), target:callPeerId, sender:myId});
+  };
+  pc.ontrack = e => {
+    if(isVideoCall) document.getElementById('remote-video').srcObject = e.streams[0];
+    else document.getElementById('remote-audio').srcObject = e.streams[0];
+  };
+  pc.onconnectionstatechange = () => {
+    if(!pc) return;
+    if(pc.connectionState==='connected'){
+      callState='active';
+      updateCallUI('active');
+      callSeconds=0; callTimerInterval=setInterval(()=>{
+        callSeconds++; document.getElementById('call-timer').textContent=fmtTime(callSeconds);
+      },1000);
+    }
+    if(['disconnected','failed','closed'].includes(pc.connectionState)) endCall('Call ended');
+  };
+}
+
+async function startCall(video){
+  if(callState!=='idle' || !Object.keys(peers).length) return;
+  isVideoCall = video;
+  callPeerId = Object.keys(peers)[0];
+  callState = 'outgoing';
+  updateCallUI('outgoing');
+
+  try{
+    const stream = await getMedia(video);
+    createPC();
+    stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    publish({type:'call-invite', sdp:pc.localDescription, sender:myId, name:myName, target:callPeerId, video:video});
+  } catch(e) { endCall('Media access failed'); }
+}
+
+async function acceptCall(){
+  document.getElementById('call-notif').classList.remove('show');
+  if(!pendingOffer || !callPeerId) return;
+  callState='active';
+  isVideoCall = pendingVideoReq;
+  updateCallUI('active');
+
+  try{
+    const stream = await getMedia(isVideoCall);
+    createPC();
+    stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+    await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    publish({type:'call-answer', sdp:pc.localDescription, target:callPeerId, sender:myId});
+    
+    iceBuffer.forEach(c=>pc.addIceCandidate(new RTCIceCandidate(c)));
+    iceBuffer=[]; pendingOffer=null;
+  } catch(e) { endCall('Failed to connect'); }
+}
+
+function declineCall(){
+  document.getElementById('call-notif').classList.remove('show');
+  if(callPeerId) publish({type:'call-decline', target:callPeerId, sender:myId});
+  callState='idle'; callPeerId=null; pendingOffer=null;
+}
+
+function hangup(){
+  if(callPeerId) publish({type:'call-end', target:callPeerId, sender:myId});
+  endCall('Call ended');
+}
+
+function endCall(reason){
+  clearInterval(callTimerInterval);
+  hideCallUI(); stopMedia();
+  if(pc){ pc.close(); pc=null; }
+  iceBuffer=[]; pendingOffer=null; callState='idle';
+  isMicMuted = false; isCamMuted = false;
+  if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  if(reason) addCallLog('🛑', reason + (callSeconds ? ` · ${fmtTime(callSeconds)}` : ''));
+  callPeerId=null; callSeconds=0;
+}
+
+function publish(msg){ if(pn) pn.publish({channel:'sig_'+roomId, message:msg}).catch(()=>{}); }
+
+async function handleSignal(msg){
+  if(msg.sender===myId || (msg.target && msg.target!==myId)) return;
+
+  if(msg.type==='join'){
+    if(!peers[msg.sender]){
+      peers[msg.sender]={name:msg.name}; sysMsg(msg.name+' joined');
+      document.getElementById('voice-btn').disabled = document.getElementById('video-btn').disabled = false;
+      publish({type:'here', sender:myId, name:myName, target:msg.sender});
+    }
+  } else if(msg.type==='here'){
+    peers[msg.sender]={name:msg.name};
+    document.getElementById('voice-btn').disabled = document.getElementById('video-btn').disabled = false;
+  } else if(msg.type==='leave'){
+    if(peers[msg.sender]){
+      sysMsg(peers[msg.sender].name+' left'); delete peers[msg.sender];
+      if(!Object.keys(peers).length) document.getElementById('voice-btn').disabled = document.getElementById('video-btn').disabled = true;
+      if(callPeerId===msg.sender) endCall('Peer disconnected');
+    }
+  } else if(msg.type==='chat'){
+    addMsg(msg.text, 'them', msg.name, msg.time);
+  } else if(msg.type==='call-invite'){
+    if(callState!=='idle'){ publish({type:'call-decline', target:msg.sender, sender:myId}); return; }
+    callState='incoming'; callPeerId=msg.sender; pendingOffer=msg.sdp; pendingVideoReq=msg.video;
+    if(!peers[msg.sender]) peers[msg.sender]={name:msg.name};
+    document.getElementById('call-notif-icon').textContent = msg.video ? '📹' : '📞';
+    document.getElementById('call-notif-text').textContent = `${msg.name} is calling…`;
+    document.getElementById('call-notif').classList.add('show');
+  } else if(msg.type==='call-answer' && pc){
+    await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+    iceBuffer.forEach(c=>pc.addIceCandidate(new RTCIceCandidate(c))); iceBuffer=[];
+  } else if(msg.type==='call-decline'){
+    endCall('Peer declined');
+  } else if(msg.type==='call-end'){
+    endCall('Call ended by peer');
+  } else if(msg.type==='ice' && pc){
+    if(pc.remoteDescription) pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+    else iceBuffer.push(msg.candidate);
+  }
+}
+
+function enterRoom(name, room){
+  myName = name.trim()||'anon'; roomId = room.toUpperCase(); myId = uid();
+  document.getElementById('join-screen').style.display='none';
+  document.getElementById('room-pill').textContent = roomId;
+  document.getElementById('msg-input').disabled = document.getElementById('send-btn').disabled = false;
+
+  pn = new PubNub({publishKey:PUB_KEY, subscribeKey:SUB_KEY, uuid:myId});
+  pn.addListener({ message: ({message}) => handleSignal(message) });
+  pn.subscribe({channels:['sig_'+roomId]});
+  
+  sysMsg(`Joined ${roomId}. Share code or invite via Public Lounge.`);
+  setTimeout(()=>publish({type:'join', sender:myId, name:myName}), 1000);
+}
+
+document.getElementById('public-btn').addEventListener('click',()=>{
+  const n=document.getElementById('name-inp').value;
+  if(!n) return document.getElementById('name-inp').focus();
+  enterRoom(n, 'PUBLIC-LOBBY');
+});
+document.getElementById('create-btn').addEventListener('click',()=>{
+  const n=document.getElementById('name-inp').value;
+  if(!n) return document.getElementById('name-inp').focus();
+  enterRoom(n, randRoom());
+});
+document.getElementById('join-btn').addEventListener('click',()=>{
+  const n=document.getElementById('name-inp').value, r=document.getElementById('room-inp').value;
+  if(!n) return document.getElementById('name-inp').focus();
+  if(!r) return document.getElementById('room-inp').focus();
+  enterRoom(n, r);
+});
+
+document.getElementById('send-btn').addEventListener('click',()=>{
+  const inp=document.getElementById('msg-input'), text=inp.value.trim();
+  if(!text) return;
+  inp.value=''; const t=tsNow(); addMsg(text,'me',myName,t);
+  publish({type:'chat', sender:myId, name:myName, text, time:t});
+});
+document.getElementById('msg-input').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('send-btn').click(); });
+
+document.getElementById('voice-btn').addEventListener('click',()=>startCall(false));
+document.getElementById('video-btn').addEventListener('click',()=>startCall(true));
+document.getElementById('notif-accept').addEventListener('click', acceptCall);
+document.getElementById('notif-decline').addEventListener('click', declineCall);
+</script>
+</body>
+</html>
